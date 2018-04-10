@@ -196,7 +196,7 @@ def _maybe_download_cifar10(path):
 def cifar10(path,  # pylint: disable=invalid-name
             conv_channels=None,
             linear_layers=None,
-            batch_norm=True,
+            batch_norm=False,
             batch_size=128,
             num_threads=4,
             min_queue_examples=1000,
@@ -213,7 +213,7 @@ def cifar10(path,  # pylint: disable=invalid-name
                               "data_batch_{}.bin".format(i))
                  for i in xrange(1, 6)]
   elif mode == "test":
-    filenames = [os.path.join(path, "test_batch.bin")]
+    filenames = [os.path.join(path, CIFAR10_FOLDER, "test_batch.bin")]
   else:
     raise ValueError("Mode {} not recognised".format(mode))
 

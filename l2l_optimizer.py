@@ -29,9 +29,9 @@ class L2LOptimizer(optimizer.Optimizer):
   tasks.
   """
 
-  def __init__(self, adam_lr, loss_func, lstm_units=20, train_opt=True, opt_last=False, dynamic_unroll=True, name="L2L"):
+  def __init__(self, internal_optimizer, loss_func, lstm_units=20, train_opt=True, opt_last=False, dynamic_unroll=False, name="L2L"):
     super(L2LOptimizer, self).__init__(False, name)
-    self._adam_lr = adam_lr
+    self._internal_optimizer = internal_optimizer
     self._loss_func = loss_func
     self._original_vars = None
     self._opt_vars = None
@@ -41,7 +41,6 @@ class L2LOptimizer(optimizer.Optimizer):
 
     self._slot_map = {}
     self._cell = tf.contrib.rnn.BasicLSTMCell(lstm_units, state_is_tuple=False)
-    self._learning_rate = adam_lr
     self._preprocess = LogAndSign(10)
     self._omitted_items = set()
     self._reuse_var = None
@@ -133,7 +132,7 @@ class L2LOptimizer(optimizer.Optimizer):
   def _simple_update(self, loss):
     updated_vars, states_assign, vars_assign = self._get_updated_vars(loss)
     new_loss = make_with_custom_variables(self._loss_func, updated_vars)
-    optimizer = tf.train.AdamOptimizer(self._learning_rate)
+    optimizer = self._internal_optimizer
 
     if not self._opt_last:
       new_loss = new_loss + loss
@@ -250,7 +249,7 @@ class L2LOptimizer(optimizer.Optimizer):
       loss_final = tf.reduce_sum(fx_array.stack(), name="loss")
 
     update_ops = []
-    optimizer = tf.train.AdamOptimizer(self._learning_rate)
+    optimizer = self._internal_optimizer
     step = optimizer.minimize(loss_final)
     if self._train_opt:
       update_ops.append(step)

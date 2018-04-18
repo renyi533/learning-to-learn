@@ -52,12 +52,12 @@ def main(_):
   loss = problem()
   global_step = tf.Variable(0, dtype=tf.int64)
   # Optimizer setup.
-  optimizer = l2l_optimizer.L2LOptimizer(adam_lr=FLAGS.learning_rate, loss_func=problem, opt_last=FLAGS.opt_last)
-  opt = optimizer.minimize(loss, global_step = global_step, unroll_len=FLAGS.unroll_len)
 
   adam_opt = tf.train.AdamOptimizer(FLAGS.learning_rate)
   opt2 = adam_opt.minimize(loss, global_step)
 
+  optimizer = l2l_optimizer.L2LOptimizer(internal_optimizer=adam_opt, loss_func=problem, opt_last=FLAGS.opt_last)
+  opt = optimizer.minimize(loss, global_step = global_step, unroll_len=FLAGS.unroll_len)
   if FLAGS.mode == 1:
     print('use adam opt')
     opt = opt2

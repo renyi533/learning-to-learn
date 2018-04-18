@@ -18,7 +18,7 @@ from tensorflow.python.training import training_ops
 from tensorflow.python.ops import variables
 from utils import get_created_variables
 from utils import make_with_custom_variables
-from preprocess import LogAndSign
+from preprocess2 import LogAndSign
 
 class L2LOptimizer(optimizer.Optimizer):
   """Learning to learn (meta) optimizer.

@@ -29,18 +29,17 @@ class L2LOptimizer(optimizer.Optimizer):
   tasks.
   """
 
-  def __init__(self, adam_lr, loss_func, opt_vars=None, lstm_units=20, train_opt=True, opt_last=False, dynamic_unroll=True, name="L2L"):
+  def __init__(self, adam_lr, loss_func, lstm_units=20, train_opt=True, opt_last=False, dynamic_unroll=True, name="L2L"):
     super(L2LOptimizer, self).__init__(False, name)
     self._adam_lr = adam_lr
     self._loss_func = loss_func
     self._original_vars = None
-    self._opt_vars = opt_vars
+    self._opt_vars = None
     self._lstm_units = lstm_units
     with tf.variable_scope('', reuse=True):
       self._original_vars, constants = get_created_variables(loss_func)
 
     self._slot_map = {}
-    self._create_slot()
     self._cell = tf.contrib.rnn.BasicLSTMCell(lstm_units, state_is_tuple=False)
     self._learning_rate = adam_lr
     self._preprocess = LogAndSign(10)
@@ -276,7 +275,7 @@ class L2LOptimizer(optimizer.Optimizer):
       else:
         return self._rnn_update(loss, unroll_len)
 
-  def minimize(self, loss, unroll_len=1, global_step=None):
+  def minimize(self, loss, unroll_len=1, var_list=None, global_step=None):
     """Returns an operator minimizing the meta-loss.
 
     Args:
@@ -289,6 +288,8 @@ class L2LOptimizer(optimizer.Optimizer):
     Returns:
       namedtuple containing (step, update, reset, fx, x)
     """
+    self._opt_vars = var_list
+    self._create_slot()
     update_ops = self._get_update_ops(loss, unroll_len)
 
     if global_step is None:

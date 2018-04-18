@@ -54,10 +54,13 @@ class L2LOptimizer(optimizer.Optimizer):
     print('total variables in graph:')
     print(self._original_vars)
 
+    opt_vars = []
     for v in self._original_vars:
       if isinstance(v, variables.PartitionedVariable) or ((self._opt_vars is not None) and (v not in self._opt_vars)):
         self._omitted_items.add(i)
         continue
+      else:
+        opt_vars.append(v)
 
       with ops.colocate_with(v):
         dtype = v.dtype.base_dtype
@@ -72,7 +75,9 @@ class L2LOptimizer(optimizer.Optimizer):
       self._slot_map[v] = slot
       i = i + 1
 
-    self._opt_vars = list(self._slot_map.keys())
+    self._opt_vars = opt_vars #list(self._slot_map.keys())
+    print('omitted position:')
+    print(self._omitted_items)
     print('variables to be optimized by L2L:')
     print(self._opt_vars)
 

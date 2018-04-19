@@ -25,7 +25,7 @@ import tensorflow as tf
 
 from tensorflow.contrib.learn.python.learn import monitored_session as ms
 
-import l2l_optimizer
+import l2l_optimizer_v2 as l2l_optimizer
 import utils
 import util
 
@@ -57,7 +57,7 @@ def main(_):
   opt2 = adam_opt.minimize(loss, global_step)
 
   adagrad_opt = tf.train.AdagradOptimizer(FLAGS.learning_rate)
-  optimizer = l2l_optimizer.L2LOptimizer(internal_optimizer=adagrad_opt, loss_func=problem, opt_last=FLAGS.opt_last)
+  optimizer = l2l_optimizer.L2LOptimizer(internal_optimizer=adam_opt, loss_func=problem, opt_last=FLAGS.opt_last)
   opt = optimizer.minimize(loss, global_step = global_step, unroll_len=FLAGS.unroll_len)
   if FLAGS.mode == 1:
     print('use adam opt')

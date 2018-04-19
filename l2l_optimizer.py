@@ -29,7 +29,7 @@ class L2LOptimizer(optimizer.Optimizer):
   tasks.
   """
 
-  def __init__(self, internal_optimizer, loss_func, lstm_units=20, train_opt=True, opt_last=False, dynamic_unroll=False, update_ratio=1.0, name="L2L"):
+  def __init__(self, internal_optimizer, loss_func, lstm_units=20, train_opt=True, opt_last=False, dynamic_unroll=True, delta_ratio=1.0, update_ratio=1.0, name="L2L"):
     super(L2LOptimizer, self).__init__(False, name)
     self._internal_optimizer = internal_optimizer
     self._loss_func = loss_func
@@ -48,6 +48,7 @@ class L2LOptimizer(optimizer.Optimizer):
     self._opt_last = opt_last
     self._dynamic_unroll = dynamic_unroll
     self._update_ratio = update_ratio
+    self._delta_ratio = delta_ratio
 
   def _create_slot(self):
     i = 0
@@ -126,7 +127,7 @@ class L2LOptimizer(optimizer.Optimizer):
         updated_vars.append(v)
       else:
         delta, state = self._get_prediction(gradient_map[v], self._slot_map[v])
-        updated_vars.append(delta * self._update_ratio + v)
+        updated_vars.append(delta * self._delta_ratio + v)
         #updated_vars.append(delta + tf.stop_gradient(v))
         state_update_op = tf.assign(self._slot_map[v], state)
         var_update_op = tf.assign_add(v, delta * self._update_ratio)
@@ -193,7 +194,7 @@ class L2LOptimizer(optimizer.Optimizer):
         deltas, state_next = _update(fx, x, state)
 
         for j in range(len(deltas)):
-          x_next.append(x[j] + deltas[j] * self._update_ratio)
+          x_next.append(x[j] + deltas[j] * self._delta_ratio)
 
       curr_vars = self._gen_curr_vars(x_next)
       fx_next = make_with_custom_variables(self._loss_func, curr_vars)
@@ -215,7 +216,7 @@ class L2LOptimizer(optimizer.Optimizer):
         deltas, state_next = _update(fx, x, state)
 
         for j in range(len(deltas)):
-          x_next.append(x[j] + deltas[j] * self._update_ratio)
+          x_next.append(x[j] + deltas[j] * self._delta_ratio)
 
       with tf.name_scope("t_next"):
         t_next = t + 1
@@ -269,7 +270,7 @@ class L2LOptimizer(optimizer.Optimizer):
       state = initial_states[i]
       updated_state = s_final[i]
 
-      update_ops.append(tf.assign_add(var, updated_var-var))
+      update_ops.append(tf.assign_add(var, (updated_var-var) * self._update_ratio / self._delta_ratio ))
       update_ops.append(tf.assign(state, updated_state))
 
     return update_ops

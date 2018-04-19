@@ -56,7 +56,8 @@ def main(_):
   adam_opt = tf.train.AdamOptimizer(FLAGS.learning_rate)
   opt2 = adam_opt.minimize(loss, global_step)
 
-  optimizer = l2l_optimizer.L2LOptimizer(internal_optimizer=adam_opt, loss_func=problem, opt_last=FLAGS.opt_last)
+  adagrad_opt = tf.train.AdagradOptimizer(FLAGS.learning_rate)
+  optimizer = l2l_optimizer.L2LOptimizer(internal_optimizer=adagrad_opt, loss_func=problem, opt_last=FLAGS.opt_last)
   opt = optimizer.minimize(loss, global_step = global_step, unroll_len=FLAGS.unroll_len)
   if FLAGS.mode == 1:
     print('use adam opt')

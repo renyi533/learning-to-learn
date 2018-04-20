@@ -29,7 +29,7 @@ class L2LOptimizer(optimizer.Optimizer):
   tasks.
   """
 
-  def __init__(self, internal_optimizer, loss_func, lstm_units=20, train_opt=True, opt_last=False, dynamic_unroll=False, delta_ratio=1.0, update_ratio=1.0, name="L2L"):
+  def __init__(self, internal_optimizer, loss_func, lstm_units=20, train_opt=True, opt_last=False, dynamic_unroll=True, delta_ratio=1.0, update_ratio=1.0, name="L2L"):
     super(L2LOptimizer, self).__init__(False, name)
     self._internal_optimizer = internal_optimizer
     self._loss_func = loss_func
@@ -188,7 +188,14 @@ class L2LOptimizer(optimizer.Optimizer):
         #gradients = [tf.stop_gradient(g) if g is not None else None for g in gradients]
 
       with tf.name_scope("deltas"):
-        deltas, state_next = zip(*[self._get_prediction(g, s) for g, s in zip(gradients, state)])
+        #deltas, state_next = zip(*[self._get_prediction(g, s) for g, s in zip(gradients, state)])
+        deltas = []
+        state_next = []
+        for g, s in zip(gradients, state):
+          with ops.colocate_with(s):
+            output, state = self._get_prediction(g, s)
+            deltas.append(output)
+            state_next.append(state)
         state_next = list(state_next)
 
       return deltas, state_next
@@ -307,7 +314,12 @@ class L2LOptimizer(optimizer.Optimizer):
     if var_list is None:
       self._opt_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=None)
 
+
     self._create_slot()
+
+    # just create the variables of optimizer, no use this sub-graph
+    self._get_prediction(self._opt_vars[0], self._slot_map[self._opt_vars[0]])
+
     update_ops = self._get_update_ops(loss, unroll_len)
 
     if global_step is None:

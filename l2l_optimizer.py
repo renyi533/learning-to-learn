@@ -29,7 +29,7 @@ class L2LOptimizer(optimizer.Optimizer):
   tasks.
   """
 
-  def __init__(self, internal_optimizer, loss_func, lstm_units=20, train_opt=True, opt_last=False, dynamic_unroll=False, delta_ratio=1.0, update_ratio=1.0, name="L2L"):
+  def __init__(self, internal_optimizer, loss_func, lstm_units=20, train_opt=True, opt_last=False, dynamic_unroll=False, delta_ratio=1.0, update_ratio=1.0, co_opt=True, name="L2L"):
     super(L2LOptimizer, self).__init__(False, name)
     self._internal_optimizer = internal_optimizer
     self._loss_func = loss_func
@@ -50,6 +50,7 @@ class L2LOptimizer(optimizer.Optimizer):
     self._update_ratio = update_ratio
     self._delta_ratio = delta_ratio
     self._optimizer_vars = []
+    self._co_opt = co_opt
 
   def _create_slot(self):
     i = 0
@@ -152,7 +153,11 @@ class L2LOptimizer(optimizer.Optimizer):
     if not self._opt_last:
       new_loss = new_loss + loss
 
-    step = optimizer.minimize(new_loss, var_list=self._opt_vars + self._optimizer_vars)
+    var_list = self._optimizer_vars
+    if self._co_opt:
+      var_list = self._opt_vars + self._optimizer_vars
+
+    step = optimizer.minimize(new_loss, var_list=var_list)
     if self._train_opt:
       states_assign.append(step)
     states_assign.extend(vars_assign)
@@ -276,7 +281,13 @@ class L2LOptimizer(optimizer.Optimizer):
 
     update_ops = []
     optimizer = self._internal_optimizer
-    step = optimizer.minimize(loss_final, var_list=self._opt_vars + self._optimizer_vars)
+
+    var_list = self._optimizer_vars
+    if self._co_opt:
+      var_list = self._opt_vars + self._optimizer_vars
+
+    step = optimizer.minimize(loss_final, var_list=var_list)
+
     if self._train_opt:
       update_ops.append(step)
 

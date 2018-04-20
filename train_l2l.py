@@ -38,6 +38,7 @@ flags.DEFINE_integer("num_epochs", 10000, "Number of training epochs.")
 flags.DEFINE_integer("mode", 0, "trainer selection")
 flags.DEFINE_integer("unroll_len", 1, "trainer selection")
 flags.DEFINE_boolean("opt_last", False, "trainer selection")
+flags.DEFINE_boolean("co_opt", False, "trainer selection")
 
 flags.DEFINE_string("problem", "simple", "Type of problem.")
 flags.DEFINE_float("learning_rate", 0.001, "Learning rate.")
@@ -57,7 +58,7 @@ def main(_):
   opt2 = adam_opt.minimize(loss, global_step)
 
   adagrad_opt = tf.train.AdagradOptimizer(FLAGS.learning_rate)
-  optimizer = l2l_optimizer.L2LOptimizer(internal_optimizer=adam_opt, loss_func=problem, opt_last=FLAGS.opt_last)
+  optimizer = l2l_optimizer.L2LOptimizer(internal_optimizer=adam_opt, loss_func=problem, opt_last=FLAGS.opt_last, co_opt=FLAGS.co_opt)
   opt = optimizer.minimize(loss, global_step = global_step, unroll_len=FLAGS.unroll_len)
   if FLAGS.mode == 1:
     print('use adam opt')

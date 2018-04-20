@@ -29,7 +29,7 @@ class L2LOptimizer(optimizer.Optimizer):
   tasks.
   """
 
-  def __init__(self, internal_optimizer, loss_func, lstm_units=20, train_opt=True, opt_last=False, dynamic_unroll=True, delta_ratio=1.0, update_ratio=1.0, name="L2L"):
+  def __init__(self, internal_optimizer, loss_func, lstm_units=20, train_opt=True, opt_last=False, dynamic_unroll=False, delta_ratio=1.0, update_ratio=1.0, name="L2L"):
     super(L2LOptimizer, self).__init__(False, name)
     self._internal_optimizer = internal_optimizer
     self._loss_func = loss_func
@@ -209,7 +209,9 @@ class L2LOptimizer(optimizer.Optimizer):
         deltas, state_next = _update(fx, x, state)
 
         for j in range(len(deltas)):
-          x_next.append(x[j] + deltas[j] * self._delta_ratio)
+          with ops.colocate_with(x[j]):
+            value = x[j] + deltas[j] * self._delta_ratio
+            x_next.append(value)
 
       curr_vars = self._gen_curr_vars(x_next)
       fx_next = make_with_custom_variables(self._loss_func, curr_vars)
@@ -231,7 +233,9 @@ class L2LOptimizer(optimizer.Optimizer):
         deltas, state_next = _update(fx, x, state)
 
         for j in range(len(deltas)):
-          x_next.append(x[j] + deltas[j] * self._delta_ratio)
+          with ops.colocate_with(x[j]):
+            value = x[j] + deltas[j] * self._delta_ratio
+            x_next.append(value)
 
       with tf.name_scope("t_next"):
         t_next = t + 1

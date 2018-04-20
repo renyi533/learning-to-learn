@@ -25,7 +25,7 @@ import tensorflow as tf
 
 from tensorflow.contrib.learn.python.learn import monitored_session as ms
 
-import l2l_optimizer_v2 as l2l_optimizer
+import l2l_optimizer as l2l_optimizer
 import utils
 import util
 

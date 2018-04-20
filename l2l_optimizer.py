@@ -29,7 +29,7 @@ class L2LOptimizer(optimizer.Optimizer):
   tasks.
   """
 
-  def __init__(self, internal_optimizer, loss_func, lstm_units=20, train_opt=True, opt_last=False, dynamic_unroll=True, delta_ratio=1.0, update_ratio=1.0, name="L2L"):
+  def __init__(self, internal_optimizer, loss_func, lstm_units=20, train_opt=True, opt_last=False, dynamic_unroll=False, delta_ratio=1.0, update_ratio=1.0, name="L2L"):
     super(L2LOptimizer, self).__init__(False, name)
     self._internal_optimizer = internal_optimizer
     self._loss_func = loss_func
@@ -49,6 +49,7 @@ class L2LOptimizer(optimizer.Optimizer):
     self._dynamic_unroll = dynamic_unroll
     self._update_ratio = update_ratio
     self._delta_ratio = delta_ratio
+    self._optimizer_vars = []
 
   def _create_slot(self):
     i = 0
@@ -93,7 +94,7 @@ class L2LOptimizer(optimizer.Optimizer):
     inputs = self._preprocess(inputs)
     states = tf.reshape(states, [-1, 2*self._lstm_units])
 
-    with tf.variable_scope('l2l_weight', initializer=tf.random_normal_initializer(stddev=0.001), reuse=self._reuse_var):
+    with tf.variable_scope(self._name, initializer=tf.random_normal_initializer(stddev=0.001), reuse=self._reuse_var) as curr_scope:
       cell_outputs, new_states = self._cell(inputs, states)
       weights = tf.get_variable(
           'out_weights', [self._lstm_units, 1])
@@ -105,6 +106,12 @@ class L2LOptimizer(optimizer.Optimizer):
 
       res = tf.reshape(res, input_shape)
       new_states = tf.reshape(new_states, state_shape)
+
+      if self._reuse_var is None:
+        self._optimizer_vars = curr_scope.trainable_variables()
+
+        print('optimizer variables:')
+        print(self._optimizer_vars)
 
       if self._reuse_var is None:
         self._reuse_var = True
@@ -126,13 +133,14 @@ class L2LOptimizer(optimizer.Optimizer):
       if v not in gradient_map:
         updated_vars.append(v)
       else:
-        delta, state = self._get_prediction(gradient_map[v], self._slot_map[v])
-        updated_vars.append(delta * self._delta_ratio + v)
-        #updated_vars.append(delta + tf.stop_gradient(v))
-        state_update_op = tf.assign(self._slot_map[v], state)
-        var_update_op = tf.assign_add(v, delta * self._update_ratio)
-        vars_assign.append(var_update_op)
-        states_assign.append(state_update_op)
+        with ops.colocate_with(v):
+          delta, state = self._get_prediction(gradient_map[v], self._slot_map[v])
+          updated_vars.append(delta * self._delta_ratio + v)
+          #updated_vars.append(delta + tf.stop_gradient(v))
+          state_update_op = tf.assign(self._slot_map[v], state)
+          var_update_op = tf.assign_add(v, delta * self._update_ratio)
+          vars_assign.append(var_update_op)
+          states_assign.append(state_update_op)
 
     return updated_vars, states_assign, vars_assign
 
@@ -144,7 +152,7 @@ class L2LOptimizer(optimizer.Optimizer):
     if not self._opt_last:
       new_loss = new_loss + loss
 
-    step = optimizer.minimize(new_loss)#, var_list=self._opt_vars)
+    step = optimizer.minimize(new_loss, var_list=self._opt_vars + self._optimizer_vars)
     if self._train_opt:
       states_assign.append(step)
     states_assign.extend(vars_assign)
@@ -257,7 +265,7 @@ class L2LOptimizer(optimizer.Optimizer):
 
     update_ops = []
     optimizer = self._internal_optimizer
-    step = optimizer.minimize(loss_final)
+    step = optimizer.minimize(loss_final, var_list=self._opt_vars + self._optimizer_vars)
     if self._train_opt:
       update_ops.append(step)
 
@@ -295,6 +303,10 @@ class L2LOptimizer(optimizer.Optimizer):
       namedtuple containing (step, update, reset, fx, x)
     """
     self._opt_vars = var_list
+
+    if var_list is None:
+      self._opt_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=None)
+
     self._create_slot()
     update_ops = self._get_update_ops(loss, unroll_len)
 
@@ -302,7 +314,7 @@ class L2LOptimizer(optimizer.Optimizer):
       apply_updates = tf.group(*update_ops)
     else:
       with tf.control_dependencies(update_ops):
-        with tf.colocate_with(global_step):
+        with ops.colocate_with(global_step):
           apply_updates = tf.assign_add(global_step, 1).op
     return apply_updates
 

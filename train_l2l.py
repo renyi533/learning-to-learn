@@ -40,7 +40,7 @@ flags.DEFINE_integer("unroll_len", 1, "trainer selection")
 flags.DEFINE_boolean("opt_last", False, "trainer selection")
 flags.DEFINE_boolean("co_opt", False, "trainer selection")
 
-flags.DEFINE_string("problem", "simple", "Type of problem.")
+flags.DEFINE_string("problem", "mnist", "Type of problem.")
 flags.DEFINE_float("learning_rate", 0.001, "Learning rate.")
 
 

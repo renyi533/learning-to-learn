@@ -30,7 +30,8 @@ class L2LOptimizer(optimizer.Optimizer):
   tasks.
   """
 
-  def __init__(self, internal_optimizer, loss_func, lstm_units=20, train_opt=True, opt_last=False, dynamic_unroll=False, delta_ratio=1.0, update_ratio=1.0, co_opt=True, corr_smooth=0.999, name="L2L"):
+  def __init__(self, internal_optimizer, loss_func, lstm_units=20, train_opt=True, opt_last=False,
+               dynamic_unroll=False, delta_ratio=1.0, update_ratio=1.0, co_opt=True, rnn_layer_cnt=1, corr_smooth=0.999, name="L2L"):
     super(L2LOptimizer, self).__init__(False, name)
     self._internal_optimizer = internal_optimizer
     self._loss_func = loss_func
@@ -41,7 +42,8 @@ class L2LOptimizer(optimizer.Optimizer):
       self._original_vars, constants = get_created_variables(loss_func)
 
     self._slot_map = {}
-    self._cell = tf.contrib.rnn.BasicLSTMCell(lstm_units, state_is_tuple=False)
+    self._cells = [tf.contrib.rnn.BasicLSTMCell(lstm_units, state_is_tuple=False, activation=tf.nn.relu, name='lstm_optimizer_layer_%d' % (i)) for i in range(rnn_layer_cnt)]
+    self._cell = tf.contrib.rnn.MultiRNNCell(self._cells, state_is_tuple=False)
     self._preprocess = LogAndSign(10)
     self._omitted_items = set()
     self._reuse_var = None
@@ -53,6 +55,7 @@ class L2LOptimizer(optimizer.Optimizer):
     self._optimizer_vars = []
     self._co_opt = co_opt
     self._corr_smooth = corr_smooth
+    self._rnn_layer_cnt = rnn_layer_cnt
 
   def _create_slot(self):
     i = 0
@@ -74,7 +77,7 @@ class L2LOptimizer(optimizer.Optimizer):
                                              dtype=dtype)
 
       shape = v.get_shape().as_list()
-      shape.append(self._lstm_units * 2)
+      shape.append(self._lstm_units * 2 * self._rnn_layer_cnt)
 
       slot = self._get_or_make_slot_with_initializer(v, init, tensor_shape.as_shape(shape), dtype,
                                                      "state", self._name)
@@ -95,9 +98,12 @@ class L2LOptimizer(optimizer.Optimizer):
     #inputs = tf.minimum(inputs, 0.01)
     #inputs = tf.maximum(inputs, -0.01)
     inputs = self._preprocess(inputs)
-    states = tf.reshape(states, [-1, 2*self._lstm_units])
+    states = tf.reshape(states, [-1, 2*self._lstm_units*self._rnn_layer_cnt])
 
-    with tf.variable_scope(self._name, initializer=tf.random_normal_initializer(stddev=0.001), reuse=self._reuse_var) as curr_scope:
+    #states = tuple(tf.split(states, num_or_size_splits=self._rnn_layers, axis=1))
+
+    #with tf.variable_scope(self._name, initializer=tf.contrib.layers.xavier_initializer(uniform=True), reuse=self._reuse_var) as curr_scope:
+    with tf.variable_scope(self._name, initializer=tf.truncated_normal_initializer(stddev=1e-3), reuse=self._reuse_var) as curr_scope:
       cell_outputs, new_states = self._cell(inputs, states)
       weights = tf.get_variable(
           'out_weights', [self._lstm_units, 1])

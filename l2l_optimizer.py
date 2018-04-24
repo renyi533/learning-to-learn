@@ -141,12 +141,7 @@ class L2LOptimizer(optimizer.Optimizer):
           grad_dot = tf.sqrt(tf.reduce_sum(g * g))
           delta, state = self._get_prediction(gradient_map[v], self._slot_map[v])
           delta_dot = tf.sqrt(tf.reduce_sum(delta * delta))
-          updated_vars.append(delta * self._delta_ratio + v)
-          #updated_vars.append(delta + tf.stop_gradient(v))
-          state_update_op = tf.assign(self._slot_map[v], state)
-          var_update_op = tf.assign_add(v, delta * self._update_ratio)
-          vars_assign.append(var_update_op)
-          states_assign.append(state_update_op)
+
           denominator = grad_dot * delta_dot
           correlation = tf.cond(denominator > 0,
                           lambda: tf.reduce_sum(g * delta) / denominator,
@@ -156,11 +151,23 @@ class L2LOptimizer(optimizer.Optimizer):
           smoothed_correlation = correlation_var * self._corr_smooth + correlation * (1 - self._corr_smooth)
           corr_assign = tf.assign(correlation_var, smoothed_correlation)
           states_assign.append(corr_assign)
-          summary.scalar(v.name+"Gradient/dir correlation", correlation)
-          summary.scalar(v.name+"Gradient/dir smoothed correlation", smoothed_correlation)
-          summary.scalar(v.name+"grad_dot", grad_dot)
-          summary.scalar(v.name+"delta_dot", delta_dot)
-          summary.scalar(v.name+"delta_grad_ratio", delta_dot/grad_dot)
+          summary.scalar(v.name+"_Gradient/dir correlation", correlation)
+          summary.scalar(v.name+"_Gradient/dir smoothed correlation", smoothed_correlation)
+          summary.scalar(v.name+"_grad_dot", grad_dot)
+          summary.scalar(v.name+"_delta_dot", delta_dot)
+          ratio = tf.cond(grad_dot > 0,
+                          lambda: delta_dot/grad_dot,
+                          lambda: ops.convert_to_tensor(0.0))
+          summary.scalar(v.name+"_delta_grad_ratio", ratio)
+          delta = tf.cond(ratio > self._delta_ratio,
+                          lambda: delta * self._delta_ratio / ratio,
+                          lambda: delta)
+          updated_vars.append(delta + v)
+          #updated_vars.append(delta + tf.stop_gradient(v))
+          state_update_op = tf.assign(self._slot_map[v], state)
+          var_update_op = tf.assign_add(v, delta * self._update_ratio)
+          vars_assign.append(var_update_op)
+          states_assign.append(state_update_op)
 
     return updated_vars, states_assign, vars_assign
 
@@ -218,26 +225,37 @@ class L2LOptimizer(optimizer.Optimizer):
         for g, s, v in zip(gradients, state, x):
           with ops.colocate_with(s):
             output, state = self._get_prediction(g, s)
+
+            delta_dot = tf.sqrt(tf.reduce_sum(output * output))
+            grad_dot = tf.sqrt(tf.reduce_sum(g * g))
+
+            ratio = tf.cond(grad_dot > 0,
+                            lambda: delta_dot/grad_dot,
+                            lambda: ops.convert_to_tensor(0.0))
+
+            output = tf.cond(ratio > self._delta_ratio,
+                             lambda: output * self._delta_ratio / ratio,
+                             lambda: output)
+
             deltas.append(output)
             state_next.append(state)
 
             if not self._dynamic_unroll:
-              delta_dot = tf.sqrt(tf.reduce_sum(output * output))
-              grad_dot = tf.sqrt(tf.reduce_sum(g * g))
               denominator = grad_dot * delta_dot
               correlation = tf.cond(denominator > 0,
-                            lambda: tf.reduce_sum(g * output) / denominator,
-                            lambda: ops.convert_to_tensor(0.0))
+                                    lambda: tf.reduce_sum(g * output) / denominator,
+                                    lambda: ops.convert_to_tensor(0.0))
 
               correlation_var = tf.Variable(0.0, trainable=False)
               smoothed_correlation = correlation_var * self._corr_smooth + correlation * (1 - self._corr_smooth)
               corr_assign = tf.assign(correlation_var, smoothed_correlation)
               corr_var_updates.append(corr_assign)
-              summary.scalar(v.name+"Gradient/dir correlation", correlation)
-              summary.scalar(v.name+"Gradient/dir smoothed correlation", smoothed_correlation)
-              summary.scalar(v.name+"grad_dot", grad_dot)
-              summary.scalar(v.name+"delta_dot", delta_dot)
-              summary.scalar(v.name+"delta_grad_ratio", delta_dot/grad_dot)
+              summary.scalar(v.name+"_Gradient/dir correlation", correlation)
+              summary.scalar(v.name+"_Gradient/dir smoothed correlation", smoothed_correlation)
+              summary.scalar(v.name+"_grad_dot", grad_dot)
+              summary.scalar(v.name+"_delta_dot", delta_dot)
+              summary.scalar(v.name+"_delta_grad_ratio", ratio)
+
 
         state_next = list(state_next)
 
@@ -338,7 +356,7 @@ class L2LOptimizer(optimizer.Optimizer):
       state = initial_states[i]
       updated_state = s_final[i]
 
-      update_ops.append(tf.assign_add(var, (updated_var-var) * self._update_ratio / self._delta_ratio ))
+      update_ops.append(tf.assign_add(var, (updated_var-var) * self._update_ratio))
       update_ops.append(tf.assign(state, updated_state))
 
     return update_ops + corr_var_updates

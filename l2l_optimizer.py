@@ -233,11 +233,11 @@ class L2LOptimizer(optimizer.Optimizer):
                             lambda: delta_dot/grad_dot,
                             lambda: ops.convert_to_tensor(0.0))
 
-            output = tf.cond(ratio > self._delta_ratio,
+            final_output = tf.cond(ratio > self._delta_ratio,
                              lambda: output * self._delta_ratio / ratio,
                              lambda: output)
 
-            deltas.append(output)
+            deltas.append(final_output)
             state_next.append(state)
 
             if not self._dynamic_unroll:

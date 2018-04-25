@@ -31,7 +31,8 @@ class L2LOptimizer(optimizer.Optimizer):
   """
 
   def __init__(self, internal_optimizer, loss_func, lstm_units=20, train_opt=True, opt_last=False,
-               dynamic_unroll=False, delta_ratio=1.0, update_ratio=1.0, co_opt=True, rnn_layer_cnt=1, corr_smooth=0.999, name="L2L"):
+               dynamic_unroll=False, delta_ratio=1.0, update_ratio=1.0, co_opt=True, rnn_layer_cnt=1,
+               corr_smooth=0.999, optimizer_ckpt=None, name="L2L"):
     super(L2LOptimizer, self).__init__(False, name)
     self._internal_optimizer = internal_optimizer
     self._loss_func = loss_func
@@ -56,6 +57,7 @@ class L2LOptimizer(optimizer.Optimizer):
     self._co_opt = co_opt
     self._corr_smooth = corr_smooth
     self._rnn_layer_cnt = rnn_layer_cnt
+    self._optimizer_ckpt = optimizer_ckpt
 
   def _create_slot(self):
     i = 0
@@ -121,6 +123,11 @@ class L2LOptimizer(optimizer.Optimizer):
 
         print('optimizer variables:')
         print(self._optimizer_vars)
+
+        if self._optimizer_ckpt is not None:
+          scope_name = curr_scope.name + '/'
+          print('load variables in (%s) from %s' % (scope_name, self._optimizer_ckpt))
+          tf.contrib.framework.init_from_checkpoint(self._optimizer_ckpt, {scope_name: scope_name})
 
       if self._reuse_var is None:
         self._reuse_var = True

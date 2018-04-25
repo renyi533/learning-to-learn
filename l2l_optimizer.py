@@ -162,7 +162,7 @@ class L2LOptimizer(optimizer.Optimizer):
 
           correlation_var = tf.Variable(0.0, trainable=False)
           smoothed_correlation = correlation_var * self._corr_smooth + correlation * (1 - self._corr_smooth)
-          corr_assign = tf.assign(correlation_var, smoothed_correlation)
+          corr_assign = tf.assign(correlation_var, smoothed_correlation, use_locking=True)
           states_assign.append(corr_assign)
           summary.scalar(v.name+"_Gradient/dir correlation", correlation)
           summary.scalar(v.name+"_Gradient/dir smoothed correlation", smoothed_correlation)
@@ -177,8 +177,8 @@ class L2LOptimizer(optimizer.Optimizer):
                           lambda: delta)
           updated_vars.append(delta + v)
           #updated_vars.append(delta + tf.stop_gradient(v))
-          state_update_op = tf.assign(self._slot_map[v], state)
-          var_update_op = tf.assign_add(v, delta * self._update_ratio)
+          state_update_op = tf.assign(self._slot_map[v], state, use_locking=True)
+          var_update_op = tf.assign_add(v, delta * self._update_ratio, use_locking=True)
           vars_assign.append(var_update_op)
           states_assign.append(state_update_op)
 
@@ -261,7 +261,7 @@ class L2LOptimizer(optimizer.Optimizer):
 
               correlation_var = tf.Variable(0.0, trainable=False)
               smoothed_correlation = correlation_var * self._corr_smooth + correlation * (1 - self._corr_smooth)
-              corr_assign = tf.assign(correlation_var, smoothed_correlation)
+              corr_assign = tf.assign(correlation_var, smoothed_correlation, use_locking=True)
               corr_var_updates.append(corr_assign)
               summary.scalar(v.name+"_Gradient/dir correlation", correlation)
               summary.scalar(v.name+"_Gradient/dir smoothed correlation", smoothed_correlation)
@@ -369,8 +369,8 @@ class L2LOptimizer(optimizer.Optimizer):
       state = initial_states[i]
       updated_state = s_final[i]
 
-      update_ops.append(tf.assign_add(var, (updated_var-var) * self._update_ratio))
-      update_ops.append(tf.assign(state, updated_state))
+      update_ops.append(tf.assign_add(var, (updated_var-var) * self._update_ratio, use_locking=True))
+      update_ops.append(tf.assign(state, updated_state, use_locking=True))
 
     return update_ops + corr_var_updates
 
@@ -411,6 +411,6 @@ class L2LOptimizer(optimizer.Optimizer):
     else:
       with tf.control_dependencies(update_ops):
         with ops.colocate_with(global_step):
-          apply_updates = tf.assign_add(global_step, 1).op
+          apply_updates = tf.assign_add(global_step, 1, use_locking=True).op
     return apply_updates
 

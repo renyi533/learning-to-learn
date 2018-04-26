@@ -66,7 +66,8 @@ class L2LOptimizer(optimizer.Optimizer):
     print(self._original_vars)
 
     opt_vars = []
-    for v in self._original_vars:
+    for i in range(len(self._original_vars)):
+      v = self._original_vars[i]
       if isinstance(v, variables.PartitionedVariable) or ((self._opt_vars is not None) and (v not in self._opt_vars)):
         self._omitted_items.add(i)
         continue
@@ -84,7 +85,6 @@ class L2LOptimizer(optimizer.Optimizer):
       slot = self._get_or_make_slot_with_initializer(v, init, tensor_shape.as_shape(shape), dtype,
                                                      "state", self._name)
       self._slot_map[v] = slot
-      i = i + 1
 
     self._opt_vars = opt_vars #list(self._slot_map.keys())
     print('omitted position:')

@@ -18,7 +18,6 @@ from tensorflow.python.training import training_ops
 from tensorflow.python.ops import variables
 from utils import get_created_variables
 from utils import make_with_custom_variables
-from preprocess2 import LogAndSign
 from tensorflow.python.summary import summary
 
 class L2LOptimizer(optimizer.Optimizer):
@@ -32,7 +31,7 @@ class L2LOptimizer(optimizer.Optimizer):
 
   def __init__(self, internal_optimizer, loss_func, lstm_units=20, train_opt=True, opt_last=False,
                dynamic_unroll=False, delta_ratio=1.0, update_ratio=1.0, co_opt=True, rnn_layer_cnt=1,
-               corr_smooth=0.999, optimizer_ckpt=None, name="L2L"):
+               corr_smooth=0.999, optimizer_ckpt=None, preprocessor = None, name="L2L"):
     super(L2LOptimizer, self).__init__(False, name)
     self._internal_optimizer = internal_optimizer
     self._loss_func = loss_func
@@ -45,7 +44,6 @@ class L2LOptimizer(optimizer.Optimizer):
     self._slot_map = {}
     self._cells = [tf.contrib.rnn.BasicLSTMCell(lstm_units, state_is_tuple=False, activation=tf.nn.relu, name='lstm_optimizer_layer_%d' % (i)) for i in range(rnn_layer_cnt)]
     self._cell = tf.contrib.rnn.MultiRNNCell(self._cells, state_is_tuple=False)
-    self._preprocess = LogAndSign(10)
     self._omitted_items = set()
     self._reuse_var = None
     self._train_opt = train_opt
@@ -58,6 +56,7 @@ class L2LOptimizer(optimizer.Optimizer):
     self._corr_smooth = corr_smooth
     self._rnn_layer_cnt = rnn_layer_cnt
     self._optimizer_ckpt = optimizer_ckpt
+    self._preprocessor = preprocessor
 
   def _create_slot(self):
     i = 0
@@ -99,7 +98,8 @@ class L2LOptimizer(optimizer.Optimizer):
     inputs = tf.reshape(inputs, [-1, 1])
     #inputs = tf.minimum(inputs, 0.01)
     #inputs = tf.maximum(inputs, -0.01)
-    inputs = self._preprocess(inputs)
+    if self._preprocessor is not None:
+      inputs = self._preprocessor(inputs)
     states = tf.reshape(states, [-1, 2*self._lstm_units*self._rnn_layer_cnt])
 
     #states = tuple(tf.split(states, num_or_size_splits=self._rnn_layers, axis=1))
@@ -164,6 +164,10 @@ class L2LOptimizer(optimizer.Optimizer):
           smoothed_correlation = correlation_var * self._corr_smooth + correlation * (1 - self._corr_smooth)
           corr_assign = tf.assign(correlation_var, smoothed_correlation, use_locking=True)
           states_assign.append(corr_assign)
+          summary.histogram(v.name, v)
+          summary.histogram(v.name+"_gradient", g)
+          summary.histogram(v.name+"_delta", delta)
+
           summary.scalar(v.name+"_Gradient/dir correlation", correlation)
           summary.scalar(v.name+"_Gradient/dir smoothed correlation", smoothed_correlation)
           summary.scalar(v.name+"_grad_dot", grad_dot)
@@ -175,6 +179,7 @@ class L2LOptimizer(optimizer.Optimizer):
           delta = tf.cond(ratio > self._delta_ratio,
                           lambda: delta * self._delta_ratio / ratio,
                           lambda: delta)
+          summary.histogram(v.name+"_final_delta", delta)
           updated_vars.append(delta + v)
           #updated_vars.append(delta + tf.stop_gradient(v))
           state_update_op = tf.assign(self._slot_map[v], state, use_locking=True)
@@ -263,6 +268,10 @@ class L2LOptimizer(optimizer.Optimizer):
               smoothed_correlation = correlation_var * self._corr_smooth + correlation * (1 - self._corr_smooth)
               corr_assign = tf.assign(correlation_var, smoothed_correlation, use_locking=True)
               corr_var_updates.append(corr_assign)
+              summary.histogram(v.name, v)
+              summary.histogram(v.name+"_gradient", g)
+              summary.histogram(v.name+"_delta", output)
+              summary.histogram(v.name+"_final_delta", final_output)
               summary.scalar(v.name+"_Gradient/dir correlation", correlation)
               summary.scalar(v.name+"_Gradient/dir smoothed correlation", smoothed_correlation)
               summary.scalar(v.name+"_grad_dot", grad_dot)

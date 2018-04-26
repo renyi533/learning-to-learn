@@ -28,7 +28,7 @@ from tensorflow.contrib.learn.python.learn import monitored_session as ms
 import l2l_optimizer as l2l_optimizer
 import utils
 import util
-
+from preprocess2 import LogAndSign
 flags = tf.flags
 logging = tf.logging
 
@@ -61,7 +61,7 @@ def main(_):
   opt2 = adam_opt.minimize(loss, global_step)
 
   adagrad_opt = tf.train.AdagradOptimizer(FLAGS.learning_rate)
-  optimizer = l2l_optimizer.L2LOptimizer(internal_optimizer=adam_opt, loss_func=problem, opt_last=FLAGS.opt_last,
+  optimizer = l2l_optimizer.L2LOptimizer(internal_optimizer=adam_opt, loss_func=problem, opt_last=FLAGS.opt_last, preprocessor=LogAndSign(10),
           co_opt=FLAGS.co_opt, rnn_layer_cnt=FLAGS.layer, delta_ratio=FLAGS.delta_ratio, update_ratio=FLAGS.update_ratio)
   opt = optimizer.minimize(loss, global_step = global_step, unroll_len=FLAGS.unroll_len)
   if FLAGS.mode == 1:

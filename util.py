@@ -39,7 +39,8 @@ def run_epoch(sess, cost_op, ops, reset, num_unrolls):
 def print_stats(header, total_error, total_time, n):
   """Prints experiment statistics."""
   print(header)
-  print("Log Mean Final Error: {:.2f}".format(np.log10(total_error / n)))
+  print("Log Mean Final Error: {:.2f}".format((total_error / n)))
+  #print("Log Mean Final Error: {:.2f}".format(np.log10(total_error / n)))
   print("Mean epoch time: {:.2f} s".format(total_time / n))
 
 

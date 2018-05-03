@@ -73,6 +73,11 @@ def main(_):
     # Prevent accidental changes to the graph.
     tf.get_default_graph().finalize()
 
+    trainable_vars = tf.trainable_variables()
+    print('trainable variables')
+    for v in trainable_vars:
+        print("parameter:", v.name, "device:", v.device, "shape:", v.get_shape())
+
     best_evaluation = float("inf")
     total_time = 0
     total_cost = 0

@@ -42,7 +42,7 @@ class L2LOptimizer(optimizer.Optimizer):
       self._original_vars, constants = get_created_variables(loss_func)
 
     self._slot_map = {}
-    self._cells = [tf.contrib.rnn.BasicLSTMCell(lstm_units, state_is_tuple=False, activation=tf.nn.relu, name='lstm_optimizer_layer_%d' % (i)) for i in range(rnn_layer_cnt)]
+    self._cells = [tf.contrib.rnn.BasicLSTMCell(lstm_units, state_is_tuple=False) for i in range(rnn_layer_cnt)]
     self._cell = tf.contrib.rnn.MultiRNNCell(self._cells, state_is_tuple=False)
     self._omitted_items = set()
     self._reuse_var = None
@@ -65,6 +65,7 @@ class L2LOptimizer(optimizer.Optimizer):
     print(self._original_vars)
 
     opt_vars = []
+    slot_vars = []
     for i in range(len(self._original_vars)):
       v = self._original_vars[i]
       if isinstance(v, variables.PartitionedVariable) or ((self._opt_vars is not None) and (v not in self._opt_vars)):
@@ -84,8 +85,10 @@ class L2LOptimizer(optimizer.Optimizer):
       slot = self._get_or_make_slot_with_initializer(v, init, tensor_shape.as_shape(shape), dtype,
                                                      "state", self._name)
       self._slot_map[v] = slot
+      slot_vars.append(slot)
 
     self._opt_vars = opt_vars #list(self._slot_map.keys())
+    self._slot_vars = slot_vars
     print('omitted position:')
     print(self._omitted_items)
     print('variables to be optimized by L2L:')
@@ -243,7 +246,8 @@ class L2LOptimizer(optimizer.Optimizer):
         for g, s, v in zip(gradients, state, x):
           with ops.colocate_with(s):
             output, state = self._get_prediction(g, s)
-
+            final_output = output
+            '''
             delta_dot = tf.sqrt(tf.reduce_sum(output * output))
             grad_dot = tf.sqrt(tf.reduce_sum(g * g))
 
@@ -254,10 +258,10 @@ class L2LOptimizer(optimizer.Optimizer):
             final_output = tf.cond(ratio > self._delta_ratio,
                              lambda: output * self._delta_ratio / ratio,
                              lambda: output)
-
+            '''
             deltas.append(final_output)
             state_next.append(state)
-
+            '''
             if not self._dynamic_unroll:
               denominator = grad_dot * delta_dot
               correlation = tf.cond(denominator > 0,
@@ -277,7 +281,7 @@ class L2LOptimizer(optimizer.Optimizer):
               summary.scalar(v.name+"_grad_dot", grad_dot)
               summary.scalar(v.name+"_delta_dot", delta_dot)
               summary.scalar(v.name+"_delta_grad_ratio", ratio)
-
+            '''
 
         state_next = list(state_next)
 
@@ -293,7 +297,7 @@ class L2LOptimizer(optimizer.Optimizer):
 
         for j in range(len(deltas)):
           with ops.colocate_with(x[j]):
-            value = x[j] + deltas[j] * self._delta_ratio
+            value = x[j] + deltas[j]
             x_next.append(value)
 
       curr_vars = self._gen_curr_vars(x_next)
@@ -317,7 +321,7 @@ class L2LOptimizer(optimizer.Optimizer):
 
         for j in range(len(deltas)):
           with ops.colocate_with(x[j]):
-            value = x[j] + deltas[j] * self._delta_ratio
+            value = x[j] + deltas[j]
             x_next.append(value)
 
       with tf.name_scope("t_next"):
@@ -384,10 +388,17 @@ class L2LOptimizer(optimizer.Optimizer):
     return update_ops + corr_var_updates
 
   def _get_update_ops(self, loss, unroll_len):
-      if unroll_len <= 1:
+      if unroll_len <= 0:
         return self._simple_update(loss)
       else:
         return self._rnn_update(loss, unroll_len)
+
+
+  def get_opt_var(self):
+    return self._opt_vars
+
+  def get_slot_var(self):
+    return self._slot_vars
 
   def minimize(self, loss, unroll_len=1, var_list=None, global_step=None):
     """Returns an operator minimizing the meta-loss.
@@ -413,13 +424,31 @@ class L2LOptimizer(optimizer.Optimizer):
     # just create the variables of optimizer, no use this sub-graph
     self._get_prediction(self._opt_vars[0], self._slot_map[self._opt_vars[0]])
 
+
     update_ops = self._get_update_ops(loss, unroll_len)
+
 
     if global_step is None:
       apply_updates = tf.group(*update_ops)
     else:
       with tf.control_dependencies(update_ops):
+        reset_ops = []
+        '''
+        no_op = tf.no_op()
+        slot_reset = no_op
+        var_reset = no_op
+        if self._slot_reset_interval is not None:
+          slot_reset = tf.cond(tf.equal(tf.mod(global_step, self._slot_reset_interval), 0), lambda: tf.variables_initializer(self._slot_vars), lambda: no_op)
+
+        if self._var_reset_interval is not None:
+          var_reset = tf.cond(tf.equal(tf.mod(global_step, self._var_reset_interval), 0), lambda: tf.variables_initializer(self._opt_vars), lambda: no_op)
+
+        reset_ops = [slot_reset, var_reset]
+        '''
         with ops.colocate_with(global_step):
-          apply_updates = tf.assign_add(global_step, 1, use_locking=True).op
+          global_step_update = tf.assign_add(global_step, 1, use_locking=True).op
+        reset_ops.append(global_step_update)
+        apply_updates = tf.group(*reset_ops)
+
     return apply_updates
 

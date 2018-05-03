@@ -45,7 +45,7 @@ flags.DEFINE_integer("num_steps", 100,
 flags.DEFINE_integer("unroll_length", 5, "Meta-optimizer unroll length.")
 flags.DEFINE_float("learning_rate", 0.001, "Learning rate.")
 flags.DEFINE_boolean("second_derivatives", False, "Use second derivatives.")
-
+flags.DEFINE_integer("reset_interval", 5, "Number of training epochs.")
 
 def main(_):
   # Configuration.
@@ -88,8 +88,12 @@ def main(_):
         total_cost += curr_loss
         curr_step += 1
         if curr_step % 100 ==0:
-            print('loss:%f\n' % (total_cost/100))
+            print('step:%d,loss:%f' % (curr_step,total_cost/100))
             total_cost = 0
+
+        if curr_step % FLAGS.reset_interval == 0:
+            print('reset states')
+            sess.run(reset)
 
 
 

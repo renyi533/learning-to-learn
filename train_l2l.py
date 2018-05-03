@@ -1,19 +1,3 @@
-# Copyright 2016 Google Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# ==============================================================================
-"""Learning 2 Learn training."""
-
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -36,10 +20,12 @@ logging = tf.logging
 FLAGS = flags.FLAGS
 flags.DEFINE_integer("num_epochs", 10000, "Number of training epochs.")
 flags.DEFINE_integer("mode", 0, "trainer selection")
-flags.DEFINE_integer("layer", 1, "trainer selection")
-flags.DEFINE_integer("unroll_len", 5, "trainer selection")
+flags.DEFINE_integer("layer", 2, "trainer selection")
+flags.DEFINE_integer("unroll_len", 20, "trainer selection")
+flags.DEFINE_integer("reset_interval", 5, "trainer selection")
 flags.DEFINE_boolean("opt_last", False, "trainer selection")
 flags.DEFINE_boolean("co_opt", False, "trainer selection")
+flags.DEFINE_boolean("dynamic_unroll", True, "trainer selection")
 
 flags.DEFINE_string("problem", "mnist", "Type of problem.")
 flags.DEFINE_float("learning_rate", 0.001, "Learning rate.")
@@ -62,14 +48,16 @@ def main(_):
 
   adagrad_opt = tf.train.AdagradOptimizer(FLAGS.learning_rate)
   optimizer = l2l_optimizer.L2LOptimizer(internal_optimizer=adam_opt, loss_func=problem, opt_last=FLAGS.opt_last, preprocessor=LogAndSign(10),
-          co_opt=FLAGS.co_opt, rnn_layer_cnt=FLAGS.layer, delta_ratio=FLAGS.delta_ratio, update_ratio=FLAGS.update_ratio)
+          co_opt=FLAGS.co_opt, rnn_layer_cnt=FLAGS.layer, delta_ratio=FLAGS.delta_ratio, update_ratio=FLAGS.update_ratio,
+          dynamic_unroll=FLAGS.dynamic_unroll)
+
   opt = optimizer.minimize(loss, global_step = global_step, unroll_len=FLAGS.unroll_len)
   if FLAGS.mode == 1:
     print('use adam opt')
     opt = opt2
   else:
     print('use l2l opt')
-
+  slot_reset = tf.variables_initializer(optimizer._slot_vars+optimizer._opt_vars)
   with ms.MonitoredSession() as sess:
     # Prevent accidental changes to the graph.
     tf.get_default_graph().finalize()
@@ -88,8 +76,12 @@ def main(_):
       step, curr_loss, _ = sess.run([global_step, loss, opt])
       accum_loss += curr_loss
       if step % 100 == 0:
-        print('loss:%f\n' % (accum_loss/100))
+        print('step:%d,loss:%f' % (step, accum_loss/100))
         accum_loss = 0
+
+      if step % FLAGS.reset_interval == 0:
+        #print('reset')
+        sess.run(slot_reset)
 
 
 if __name__ == "__main__":

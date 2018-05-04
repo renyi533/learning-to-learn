@@ -42,7 +42,7 @@ class L2LOptimizer(optimizer.Optimizer):
       self._original_vars, constants = get_created_variables(loss_func)
 
     self._slot_map = {}
-    self._cells = [tf.contrib.rnn.BasicLSTMCell(lstm_units, state_is_tuple=False) for i in range(rnn_layer_cnt)]
+    self._cells = [tf.contrib.rnn.BasicLSTMCell(lstm_units, state_is_tuple=False, activation=tf.nn.relu) for i in range(rnn_layer_cnt)]
     self._cell = tf.contrib.rnn.MultiRNNCell(self._cells, state_is_tuple=False)
     self._omitted_items = set()
     self._reuse_var = None

@@ -31,7 +31,7 @@ class L2LOptimizer(optimizer.Optimizer):
 
   def __init__(self, internal_optimizer, loss_func, lstm_units=20, train_opt=True, opt_last=False,
                dynamic_unroll=False, delta_ratio=1.0, update_ratio=1.0, co_opt=True, rnn_layer_cnt=1,
-               corr_smooth=0.999, optimizer_ckpt=None, preprocessor = None, name="L2L"):
+               corr_smooth=0.999, optimizer_ckpt=None, preprocessor = None, activation=tf.nn.tanh, name="L2L"):
     super(L2LOptimizer, self).__init__(False, name)
     self._internal_optimizer = internal_optimizer
     self._loss_func = loss_func
@@ -42,7 +42,7 @@ class L2LOptimizer(optimizer.Optimizer):
       self._original_vars, constants = get_created_variables(loss_func)
 
     self._slot_map = {}
-    self._cells = [tf.contrib.rnn.BasicLSTMCell(lstm_units, state_is_tuple=False, activation=tf.nn.relu) for i in range(rnn_layer_cnt)]
+    self._cells = [tf.contrib.rnn.BasicLSTMCell(lstm_units, state_is_tuple=False, activation=activation) for i in range(rnn_layer_cnt)]
     self._cell = tf.contrib.rnn.MultiRNNCell(self._cells, state_is_tuple=False)
     self._omitted_items = set()
     self._reuse_var = None

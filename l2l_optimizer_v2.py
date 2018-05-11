@@ -90,15 +90,14 @@ class L2LOptimizer(optimizer.Optimizer):
         opt_vars.append(v)
 
       with ops.colocate_with(v):
-        dtype = v.dtype.base_dtype
-        init = init_ops.constant_initializer(0.0,
-                                             dtype=dtype)
+        shape = v.get_shape().as_list()
+        shape.append(self._lstm_units * 2 * self._rnn_layer_cnt)
+        init = tf.constant(0.0, shape = tensor_shape.as_shape(shape), dtype=tf.float32)
+        slot = tf.Variable(init, trainable=False)
 
-      shape = v.get_shape().as_list()
-      shape.append(self._lstm_units * 2 * self._rnn_layer_cnt)
+      #slot = self._get_or_make_slot_with_initializer(v, init, tensor_shape.as_shape(shape), dtype,
+      #                                               "state", self._name)
 
-      slot = self._get_or_make_slot_with_initializer(v, init, tensor_shape.as_shape(shape), dtype,
-                                                     "state", self._name)
       self._slot_map[v] = slot
       slot_vars.append(slot)
 
@@ -285,18 +284,6 @@ class L2LOptimizer(optimizer.Optimizer):
     else:
       with tf.control_dependencies(update_ops):
         reset_ops = []
-        '''
-        no_op = tf.no_op()
-        slot_reset = no_op
-        var_reset = no_op
-        if self._slot_reset_interval is not None:
-          slot_reset = tf.cond(tf.equal(tf.mod(global_step, self._slot_reset_interval), 0), lambda: tf.variables_initializer(self._slot_vars), lambda: no_op)
-
-        if self._var_reset_interval is not None:
-          var_reset = tf.cond(tf.equal(tf.mod(global_step, self._var_reset_interval), 0), lambda: tf.variables_initializer(self._opt_vars), lambda: no_op)
-
-        reset_ops = [slot_reset, var_reset]
-        '''
         with ops.colocate_with(global_step):
           global_step_update = tf.assign_add(global_step, 1, use_locking=True).op
         reset_ops.append(global_step_update)
